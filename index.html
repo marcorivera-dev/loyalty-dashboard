@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Embudo de activación — programa de lealtad</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --status-critical:#d03b3b;
+
+    /* Rampa ordinal (una sola familia de hue, un paso mas oscuro por etapa —
+       validado con --ordinal, ver scripts/validate_palette.js del skill de dataviz) */
+    --stage-1: #86b6ef;
+    --stage-2: #5598e7;
+    --stage-3: #2a78d6;
+    --stage-4: #184f95;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --border:         rgba(255,255,255,0.10);
+      --status-critical:#e66767;
+
+      --stage-1: #2a78d6;
+      --stage-2: #5598e7;
+      --stage-3: #86b6ef;
+      --stage-4: #b7d3f6;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --border:         rgba(255,255,255,0.10);
+    --status-critical:#e66767;
+
+    --stage-1: #2a78d6;
+    --stage-2: #5598e7;
+    --stage-3: #86b6ef;
+    --stage-4: #b7d3f6;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text-primary);
+  }
+  .viz-root { max-width: 720px; margin: 0 auto; padding: 32px 20px 48px; }
+
+  h1 {
+    font-size: 1.15rem; font-weight: 600; margin: 0 0 4px;
+  }
+  .subtitle {
+    font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 28px;
+  }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px 20px;
+  }
+
+  .funnel { display: flex; flex-direction: column; align-items: center; }
+
+  .stage-row {
+    width: 518px; /* 260 (forma) + 28 (gap) + 230 (texto) -- ancho exacto, sin sobrante */
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+
+  /* La forma solo lleva el color -- es el "swatch" de identidad, nunca el
+     texto. Esto evita el anti-patron de un label recortado por un trapezoide
+     angosto (etapas 3 y 4 son mas angostas que su propio texto). */
+  .stage-shape {
+    position: relative;
+    height: 84px;
+    width: 260px;
+    flex-shrink: 0;
+    transition: filter 0.15s ease;
+    cursor: default;
+  }
+  .stage-shape:hover, .stage-shape:focus-visible {
+    filter: brightness(1.06);
+    outline: none;
+  }
+
+  .stage-text {
+    width: 230px;
+    flex-shrink: 0;
+    text-align: left;
+  }
+  .stage-text .label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .stage-text .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .stage-text .pct {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .dropoff {
+    width: 518px;
+    box-sizing: border-box;
+    padding: 10px 258px 10px 0; /* el padding derecho deja solo la columna de la forma (260px) para centrar el contenido ahi */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.8rem;
+  }
+  .dropoff .arrow {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+  .dropoff .amount {
+    color: var(--status-critical);
+    font-weight: 700;
+  }
+  .dropoff .reason {
+    color: var(--text-secondary);
+  }
+
+  .caveat {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 24px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-1);
+  }
+  .caveat .icon {
+    font-size: 1rem;
+    line-height: 1.4;
+    flex-shrink: 0;
+  }
+  .caveat p {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+  .caveat strong { color: var(--text-primary); }
+
+  .meta {
+    margin-top: 14px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--text-primary);
+    color: var(--surface-1);
+    font-size: 0.75rem;
+    padding: 6px 10px;
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    z-index: 10;
+    white-space: nowrap;
+  }
+  .tooltip.visible { opacity: 1; }
+
+  .error, .loading {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    padding: 40px 0;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="viz-root">
+    <h1>Embudo de activación — programa de lealtad</h1>
+    <p class="subtitle">Registro → uso del programa, medido sobre compras identificadas en caja</p>
+
+    <div class="card">
+      <div id="funnel" class="funnel">
+        <p class="loading">Cargando data/funnel.json…</p>
+      </div>
+
+      <div class="caveat">
+        <span class="icon">⚠️</span>
+        <p>
+          Esto mide <strong>uso identificado del programa</strong>, no comportamiento real
+          del cliente. Solo 11–15% de los recibos traen un cliente identificado en caja —
+          alguien puede haber vuelto a comprar sin escanear su cuenta, y aquí se vería como
+          "0 compras". Estos números describen qué tanto se usa el programa de lealtad,
+          no cuántas veces regresa cada cliente.
+        </p>
+      </div>
+
+      <p id="meta" class="meta"></p>
+    </div>
+  </div>
+
+  <div id="tooltip" class="tooltip"></div>
+
+  <script>
+    async function main() {
+      const funnelEl = document.getElementById('funnel');
+      const metaEl = document.getElementById('meta');
+      const tooltipEl = document.getElementById('tooltip');
+
+      let data;
+      try {
+        const res = await fetch('data/funnel.json');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        data = await res.json();
+      } catch (err) {
+        funnelEl.innerHTML = '';
+        const p = document.createElement('p');
+        p.className = 'error';
+        p.textContent = 'No se pudo cargar data/funnel.json — corre "node compute_funnel.js" primero.';
+        funnelEl.appendChild(p);
+        return;
+      }
+
+      const stages = data.stages;
+      const maxCount = stages[0].count;
+      const SHAPE_WIDTH = 260; // ancho fijo del contenedor de cada trapezoide
+      const minWidthPx = 30; // piso visual para que la ultima etapa no desaparezca
+
+      function widthPx(count) {
+        const raw = (count / maxCount) * SHAPE_WIDTH;
+        return Math.max(raw, minWidthPx);
+      }
+
+      funnelEl.innerHTML = '';
+
+      stages.forEach((stage, i) => {
+        const topW = widthPx(stage.count);
+        const nextCount = i < stages.length - 1 ? stages[i + 1].count : stage.count;
+        const bottomW = i < stages.length - 1 ? widthPx(nextCount) : topW;
+
+        const row = document.createElement('div');
+        row.className = 'stage-row';
+
+        // La forma SOLO lleva color -- es el swatch de identidad de la etapa.
+        // El texto vive fuera, a la derecha, para que nunca se recorte sin
+        // importar que tan angosto sea el trapezoide (etapas 3 y 4 son mas
+        // angostas que su propia etiqueta).
+        const shape = document.createElement('div');
+        shape.className = 'stage-shape';
+        shape.style.background = `var(--stage-${i + 1})`;
+        shape.tabIndex = 0;
+        shape.setAttribute('role', 'img');
+        shape.setAttribute('aria-label', stage.label + ': ' + stage.count);
+
+        const topInset = (SHAPE_WIDTH - topW) / 2;
+        const bottomInset = (SHAPE_WIDTH - bottomW) / 2;
+        shape.style.clipPath = `polygon(${topInset}px 0, ${SHAPE_WIDTH - topInset}px 0, ${SHAPE_WIDTH - bottomInset}px 100%, ${bottomInset}px 100%)`;
+
+        const textWrap = document.createElement('div');
+        textWrap.className = 'stage-text';
+        const labelEl = document.createElement('div');
+        labelEl.className = 'label';
+        labelEl.textContent = stage.label;
+        const valueEl = document.createElement('div');
+        valueEl.className = 'value';
+        valueEl.textContent = stage.count.toLocaleString('es-MX');
+        const pctEl = document.createElement('div');
+        pctEl.className = 'pct';
+        pctEl.textContent = stage.pctOfTotal + '% del total';
+
+        textWrap.appendChild(labelEl);
+        textWrap.appendChild(valueEl);
+        textWrap.appendChild(pctEl);
+
+        const tooltipText = `${stage.label}: ${stage.count.toLocaleString('es-MX')} (${stage.pctOfTotal}% del total` +
+          (stage.pctOfPrevious !== null ? `, ${stage.pctOfPrevious}% de la etapa anterior` : '') + ')';
+
+        shape.addEventListener('pointermove', (e) => {
+          tooltipEl.textContent = tooltipText;
+          tooltipEl.style.left = (e.clientX + 14) + 'px';
+          tooltipEl.style.top = (e.clientY + 14) + 'px';
+          tooltipEl.classList.add('visible');
+        });
+        shape.addEventListener('pointerleave', () => tooltipEl.classList.remove('visible'));
+        shape.addEventListener('focus', () => {
+          tooltipEl.textContent = tooltipText;
+          tooltipEl.style.left = '50%';
+          tooltipEl.style.top = '8px';
+          tooltipEl.classList.add('visible');
+        });
+        shape.addEventListener('blur', () => tooltipEl.classList.remove('visible'));
+
+        row.appendChild(shape);
+        row.appendChild(textWrap);
+        funnelEl.appendChild(row);
+
+        if (i < stages.length - 1) {
+          const next = stages[i + 1];
+          const dropoff = document.createElement('div');
+          dropoff.className = 'dropoff';
+          const arrow = document.createElement('span');
+          arrow.className = 'arrow';
+          arrow.textContent = '↓';
+          const amount = document.createElement('span');
+          amount.className = 'amount';
+          amount.textContent = '−' + next.dropFromPrevious.toLocaleString('es-MX');
+          const reason = document.createElement('span');
+          reason.className = 'reason';
+          reason.textContent = 'no pasaron a "' + next.label + '"';
+          dropoff.appendChild(arrow);
+          dropoff.appendChild(amount);
+          dropoff.appendChild(reason);
+          funnelEl.appendChild(dropoff);
+        }
+      });
+
+      const fetchedAt = data.sourceDataFetchedAt ? new Date(data.sourceDataFetchedAt).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' }) : 'desconocida';
+      metaEl.textContent = `Datos de Loyverse al ${fetchedAt} (hora CDMX)`;
+    }
+
+    main();
+  </script>
+</body>
+</html>
