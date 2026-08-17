@@ -242,12 +242,18 @@
         if (!res.ok) throw new Error('HTTP ' + res.status);
         data = await res.json();
       } catch (err) {
-        funnelEl.innerHTML = '';
-        const p = document.createElement('p');
-        p.className = 'error';
-        p.textContent = 'No se pudo cargar data/funnel.json — corre "node compute_funnel.js" primero.';
-        funnelEl.appendChild(p);
-        return;
+        try {
+          const sampleRes = await fetch('data/funnel.sample.json');
+          if (!sampleRes.ok) throw new Error('HTTP ' + sampleRes.status);
+          data = await sampleRes.json();
+        } catch (sampleErr) {
+          funnelEl.innerHTML = '';
+          const p = document.createElement('p');
+          p.className = 'error';
+          p.textContent = 'No se pudo cargar data/funnel.json ni data/funnel.sample.json — corre "node compute_funnel.js" primero.';
+          funnelEl.appendChild(p);
+          return;
+        }
       }
 
       const stages = data.stages;
@@ -343,8 +349,12 @@
         }
       });
 
-      const fetchedAt = data.sourceDataFetchedAt ? new Date(data.sourceDataFetchedAt).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' }) : 'desconocida';
-      metaEl.textContent = `Datos de Loyverse al ${fetchedAt} (hora CDMX)`;
+      if (data.sample) {
+        metaEl.textContent = 'Datos de ejemplo (data/funnel.sample.json) — mismos agregados que el hallazgo en README.md';
+      } else {
+        const fetchedAt = data.sourceDataFetchedAt ? new Date(data.sourceDataFetchedAt).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' }) : 'desconocida';
+        metaEl.textContent = `Datos de Loyverse al ${fetchedAt} (hora CDMX)`;
+      }
     }
 
     main();

@@ -1,0 +1,40 @@
+{
+  "sample": true,
+  "note": "Datos de ejemplo para que el dashboard sea navegable sin credenciales de Loyverse. Son los mismos 4 agregados del hallazgo documentado en README.md — ningún dato de cliente individual.",
+  "generatedAt": null,
+  "sourceDataFetchedAt": null,
+  "stages": [
+    {
+      "key": "registrados",
+      "label": "Registrados",
+      "count": 464,
+      "pctOfTotal": 100,
+      "pctOfPrevious": null,
+      "dropFromPrevious": null
+    },
+    {
+      "key": "activados",
+      "label": "Activados (>=1 compra)",
+      "count": 250,
+      "pctOfTotal": 53.9,
+      "pctOfPrevious": 53.9,
+      "dropFromPrevious": 214
+    },
+    {
+      "key": "regresaron_dia_distinto",
+      "label": "Regresaron en día distinto",
+      "count": 110,
+      "pctOfTotal": 23.7,
+      "pctOfPrevious": 44.0,
+      "dropFromPrevious": 140
+    },
+    {
+      "key": "recurrentes",
+      "label": "Recurrentes (>=2 días distintos)",
+      "count": 73,
+      "pctOfTotal": 15.7,
+      "pctOfPrevious": 66.4,
+      "dropFromPrevious": 37
+    }
+  ]
+}
